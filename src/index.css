@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* i need good looking based on the website colors scroll bar css */
+/* width */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #061e46;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #ebebeb;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {  background: #a8a8a8;
+} 
