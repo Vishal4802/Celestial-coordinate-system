@@ -13,7 +13,6 @@ const R = 0.8
 const OBL = 23.44 * Math.PI / 180
 const DEG = Math.PI / 180
 
-// Star constants (shared across scenes)
 const STAR_DECLINATION = 0.439
 const STAR_INITIAL_HA  = 1.318
 const STAR_RA_EQ2      = 65 * DEG
@@ -21,12 +20,10 @@ const STAR_DEC_EQ2     = 22 * DEG
 const STAR_LAMBDA      = 65 * DEG
 const STAR_BETA        = 30 * DEG
 
-// Reusable Vector3 instances for math (avoid per-frame allocations)
 const _v1 = new THREE.Vector3()
 const _v2 = new THREE.Vector3()
 
 // ─── GEOMETRY HELPERS ─────────────────────────────────────────────────────────
-/** Build a dotted BufferGeometry from alternating point pairs */
 function buildDottedGeometry(points) {
   const geo = new THREE.BufferGeometry()
   geo.setFromPoints(points)
@@ -131,7 +128,6 @@ const DeclinationArc = memo(function DeclinationArc({ radius, starDeclination })
   )
 })
 
-// ─── SHARED HORIZON POINTS (reused across scenes) ────────────────────────────
 function makeRingPoints(count = 65) {
   return Array.from({ length: count }, (_, i) => {
     const a = (i / (count - 1)) * Math.PI * 2
@@ -150,7 +146,6 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
 
   const tilt = useMemo(() => latitude * DEG, [latitude])
 
-  // Arc point arrays derived from star state (only updated when star moves)
   const altArcPts = useMemo(() => {
     if (!starCoords?.pos || !starCoords?.horizonProj) return null
     return Array.from({ length: 24 }, (_, i) => {
@@ -191,7 +186,6 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
         horizonProj: hProj,
       })
 
-      // Update guide arc geometry in-place (no state, no re-render)
       if (guideArcGeoRef.current) {
         const zenith = new THREE.Vector3(0, 1, 0)
         const hNorm  = hProj.clone().normalize()
@@ -212,7 +206,6 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
         <meshPhongMaterial color="#4488ff" transparent opacity={0.08} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Horizon */}
       <group>
         <Line points={RING_PTS} color="white" lineWidth={1} />
 
@@ -237,7 +230,6 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
         )}
       </group>
 
-      {/* Equatorial ring, tilted by latitude */}
       <group rotation={[tilt, 0, 0]}>
         <group ref={equatorialGroup}>
           {config.showCelestialEquator && (
@@ -268,7 +260,6 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
         </group>
       </group>
 
-      {/* Star coordinate overlays */}
       {config.showStar && starCoords?.pos && (
         <group>
           <lineSegments>
@@ -431,7 +422,7 @@ function EquatorialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
   )
 }
 
-// ─── ECLIPTIC HELPERS (shared by Equatorial II + Ecliptic scenes) ─────────────
+// ─── ECLIPTIC HELPERS ─────────────────────────────────────────────────────────
 function makeEclipticPoint(lambda) {
   return new THREE.Vector3(
     R  * Math.cos(lambda),
@@ -440,7 +431,6 @@ function makeEclipticPoint(lambda) {
   )
 }
 
-// Precomputed static values for EquatorialII
 const EQ2_STAR_POS = new THREE.Vector3(
   R * Math.cos(STAR_DEC_EQ2) * Math.cos(STAR_RA_EQ2),
   R * Math.sin(STAR_DEC_EQ2),
@@ -449,7 +439,6 @@ const EQ2_STAR_POS = new THREE.Vector3(
 const EQ2_STAR_FOOT = new THREE.Vector3(R * Math.cos(STAR_RA_EQ2), 0, R * Math.sin(STAR_RA_EQ2))
 const EQ2_STATIC_SUN_POS = makeEclipticPoint(55 * DEG)
 
-// Precomputed arc points for EquatorialII (static, never change)
 const EQ2_RA_ARC_PTS = Array.from({ length: 32 }, (_, i) => {
   const t = (i / 31) * STAR_RA_EQ2
   return [R * Math.cos(t), 0, R * Math.sin(t)]
@@ -538,7 +527,6 @@ function EquatorialIIScene({ config, sunSpeed = 0 }) {
         </>
       )}
 
-      {/* Static star with fixed arcs */}
       {config.showStar && !config.rotateSphere && (
         <>
           <Line points={EQ2_HOUR_CIRCLE_PTS} color="#ff6600" lineWidth={1.6} dashed dashSize={0.042} gapSize={0.036} />
@@ -566,7 +554,6 @@ function EquatorialIIScene({ config, sunSpeed = 0 }) {
         </>
       )}
 
-      {/* Rotating sphere with star */}
       {config.rotateSphere && (
         <group ref={equatorialGroupRef}>
           {config.showStar && (
@@ -691,7 +678,6 @@ const ECL_NEP_POS = new THREE.Vector3(0, R * Math.cos(OBL),  R * Math.sin(OBL))
 const ECL_SEP_POS = new THREE.Vector3(0, -R * Math.cos(OBL), -R * Math.sin(OBL))
 const ECL_STATIC_SUN_POS = makeEclipticPoint(110 * DEG)
 
-// Star position in ecliptic coords (static)
 const ECL_FOOT_POS = makeEclipticPoint(STAR_LAMBDA)
 const ECL_STAR_POS = (() => {
   const foot = ECL_FOOT_POS.clone()
@@ -700,7 +686,6 @@ const ECL_STAR_POS = (() => {
     .add(ECL_NEP_DIR.clone().multiplyScalar(R * Math.sin(STAR_BETA)))
 })()
 
-// Precomputed static arc points for Ecliptic scene
 const ECL_LON_ARC_PTS = Array.from({ length: 40 }, (_, i) => {
   const p = makeEclipticPoint((i / 39) * STAR_LAMBDA)
   return [p.x, p.y, p.z]
@@ -803,7 +788,6 @@ function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
         </>
       )}
 
-      {/* Static star + coordinate arcs */}
       {config.showStar && !config.rotateSphere && (
         <>
           <Line points={ECL_NEP_TO_FOOT_PTS} color="#ff6600" lineWidth={1.8} dashed dashSize={0.042} gapSize={0.036} />
@@ -835,7 +819,6 @@ function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
         </>
       )}
 
-      {/* Rotating sphere */}
       {config.rotateSphere && (
         <group ref={equatorialGroupRef}>
           {config.showStar && (
@@ -880,7 +863,6 @@ function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
 }
 
 // ─── STAR LABEL ECLIPTIC LIVE ─────────────────────────────────────────────────
-// Ecliptic x/z unit vectors (constant)
 const ECL_X_AXIS = new THREE.Vector3(1, 0, 0)
 const ECL_Z_AXIS = new THREE.Vector3(0, -Math.sin(OBL), Math.cos(OBL))
 
@@ -1069,11 +1051,23 @@ const RESET_BTN_STYLE = {
   boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
 }
 
+// ─── MOBILE HOOK ──────────────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return isMobile
+}
+
 // ─── STEP CARD ────────────────────────────────────────────────────────────────
 const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }) {
   const isEquatorial1 = systemId === 'equatorial1'
   const isEquatorial2 = systemId === 'equatorial2'
   const isEcliptic    = systemId === 'ecliptic'
+  const isMobile      = useIsMobile()
 
   const totalSteps = isEcliptic ? 6 : isEquatorial1 ? 6 : isEquatorial2 ? 5 : 8
   const isLastStep = stepNum === totalSteps
@@ -1100,7 +1094,6 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
   const showDualSliders = (isEquatorial2 || isEcliptic) && data.config.rotateSphere
   const showLatRot      = !isEquatorial2 && !isEcliptic
 
-  // Slider label/value style memoized with accent color
   const sliderLabelStyle = useMemo(() => ({
     fontSize: '10px', color: accentColor, fontWeight: 800,
     fontFamily: FONT_MONO, textTransform: 'uppercase', letterSpacing: '0.1em',
@@ -1109,32 +1102,146 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
     fontFamily: FONT_MONO, fontSize: '12px', color: accentColor, fontWeight: 700,
   }), [accentColor])
 
+  const canvasHeight = isMobile ? '320px' : '480px'
+
+  // On mobile, controls go below canvas instead of overlaid
+  const controlsOverlay = isLastStep && (
+    <div style={isMobile ? {
+      padding: '12px 14px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      background: 'rgba(4,8,20,0.95)',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+    } : {
+      position: 'absolute', bottom: '16px', right: '16px',
+      display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end',
+    }}>
+      {showLatRot && (
+        <>
+          <div style={isMobile ? { ...SLIDER_BOX_STYLE, width: '100%' } : SLIDER_BOX_STYLE}>
+            <div style={SLIDER_ROW_STYLE}>
+              <span style={{ ...sliderLabelStyle, color: '#34d399' }}>Latitude</span>
+              <span style={{ fontFamily: FONT_MONO, fontSize: '12px', color: '#6ee7b7', fontWeight: 700 }}>{latitude.toFixed(1)}°</span>
+            </div>
+            <input
+              type="range" min="-90" max="90" step="0.5" value={latitude}
+              onChange={onLatChange}
+              style={{ width: '100%', accentColor: '#34d399', marginBottom: '8px' }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+              {[{ l: '90°', v: 90, fn: onLat90 }, { l: '0°', v: 0, fn: onLat0 }].map(p => (
+                <button key={p.v} onClick={p.fn} style={{
+                  fontSize: '10px', fontWeight: 700, fontFamily: FONT_MONO,
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                  padding: '5px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  background: Math.abs(latitude - p.v) < 0.6 ? '#10b981' : '#1a2235',
+                  color:      Math.abs(latitude - p.v) < 0.6 ? '#000'    : '#64748b',
+                }}>{p.l}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={isMobile ? { ...SLIDER_BOX_STYLE, width: '100%' } : SLIDER_BOX_STYLE}>
+            <div style={SLIDER_ROW_STYLE}>
+              <span style={{ ...sliderLabelStyle, color: '#67e8f9' }}>Rotation</span>
+              <span style={{ fontFamily: FONT_MONO, fontSize: '12px', color: '#a5f3fc', fontWeight: 700 }}>
+                {speed === 0 ? 'paused' : `${speed.toFixed(2)}×`}
+              </span>
+            </div>
+            <input
+              type="range" min="0" max="0.8" step="0.01" value={speed}
+              onChange={onSpeedChange}
+              style={{ width: '100%', accentColor: '#22d3ee' }}
+            />
+          </div>
+        </>
+      )}
+
+      {showDualSliders && (
+        <>
+          <div style={isMobile ? { ...SLIDER_BOX_STYLE, width: '100%' } : SLIDER_BOX_STYLE}>
+            <div style={SLIDER_ROW_STYLE}>
+              <span style={{ fontSize: '10px', color: isEcliptic ? '#e879f9' : '#a78bfa', fontWeight: 800, fontFamily: FONT_MONO, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Sphere
+              </span>
+              <span style={{ fontFamily: FONT_MONO, fontSize: '12px', color: isEcliptic ? '#f0abfc' : '#c4b5fd', fontWeight: 700 }}>
+                {sphereSpeed === 0 ? 'paused' : `${sphereSpeed.toFixed(2)}×`}
+              </span>
+            </div>
+            <input
+              type="range" min="0" max="0.6" step="0.01" value={sphereSpeed}
+              onChange={onSphereChange}
+              style={{ width: '100%', accentColor: isEcliptic ? '#e879f9' : '#a78bfa', marginBottom: '4px' }}
+            />
+            <div style={{ fontSize: '9px', color: isEcliptic ? '#4a2060' : '#4a3a6a', fontFamily: FONT_MONO }}>
+              ★ star / diurnal rotation
+            </div>
+          </div>
+
+          <div style={isMobile ? { ...SLIDER_BOX_STYLE, width: '100%' } : SLIDER_BOX_STYLE}>
+            <div style={SLIDER_ROW_STYLE}>
+              <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 800, fontFamily: FONT_MONO, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Sun Speed
+              </span>
+              <span style={{ fontFamily: FONT_MONO, fontSize: '12px', color: '#fde68a', fontWeight: 700 }}>
+                {sunSpeed === 0 ? 'paused' : `${sunSpeed.toFixed(2)}×`}
+              </span>
+            </div>
+            <input
+              type="range" min="0" max="2" step="0.05" value={sunSpeed}
+              onChange={onSunChange}
+              style={{ width: '100%', accentColor: '#fbbf24', marginBottom: '4px' }}
+            />
+            <div style={{ fontSize: '9px', color: '#4a3a20', fontFamily: FONT_MONO }}>
+              ☀ ecliptic drift
+            </div>
+          </div>
+        </>
+      )}
+
+      <div style={isMobile ? { display: 'flex', justifyContent: 'center' } : {}}>
+        <button onClick={onReset} style={RESET_BTN_STYLE}>RESET VIEW</button>
+      </div>
+    </div>
+  )
+
+  // On mobile: reset button floats in canvas, controls below
+  const resetBtnOnly = !isLastStep && (
+    <div style={{
+      position: 'absolute', bottom: '12px', right: '12px',
+    }}>
+      <button onClick={onReset} style={RESET_BTN_STYLE}>RESET VIEW</button>
+    </div>
+  )
+
   return (
     <div style={{
       background: 'rgba(8,12,28,0.92)', border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: '14px', overflow: 'hidden', marginBottom: '40px',
+      borderRadius: '14px', overflow: 'hidden', marginBottom: '28px',
       boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
     }}>
       {/* Header */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px',
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: isMobile ? '12px 14px' : '14px 20px',
         background: 'rgba(255,255,255,0.025)', borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
         <div style={{
-          width: '34px', height: '34px', borderRadius: '8px',
+          width: '30px', height: '30px', borderRadius: '8px',
           background: `${accentColor}18`, border: `1px solid ${accentColor}55`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '13px', fontWeight: 800, color: accentColor,
+          fontSize: isMobile ? '11px' : '13px', fontWeight: 800, color: accentColor,
           fontFamily: FONT_MONO, flexShrink: 0,
         }}>{String(stepNum).padStart(2, '0')}</div>
         <p style={{
-          margin: 0, fontSize: '13.5px', lineHeight: '1.65', color: '#b8c8e0',
+          margin: 0, fontSize: isMobile ? '12px' : '13.5px', lineHeight: '1.65', color: '#b8c8e0',
           fontFamily: FONT_SANS, fontWeight: 400, letterSpacing: '0.01em',
         }}>{data.desc}</p>
       </div>
 
       {/* 3-D Canvas */}
-      <div style={{ height: '480px', position: 'relative' }}>
+      <div style={{ height: canvasHeight, position: 'relative' }}>
         <Canvas camera={{ position: [1.8, 1.2, 1.8], fov: 40 }}>
           <color attach="background" args={['#020408']} />
           <ambientLight intensity={0.6} />
@@ -1152,105 +1259,13 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
           <OrbitControls ref={controlsRef} makeDefault minDistance={1} maxDistance={4} />
         </Canvas>
 
-        {/* Controls overlay */}
-        <div style={{
-          position: 'absolute', bottom: '16px', right: '16px',
-          display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end',
-        }}>
-          {isLastStep && (
-            <>
-              {showLatRot && (
-                <>
-                  {/* Latitude slider */}
-                  <div style={SLIDER_BOX_STYLE}>
-                    <div style={SLIDER_ROW_STYLE}>
-                      <span style={{ ...sliderLabelStyle, color: '#34d399' }}>Latitude</span>
-                      <span style={{ ...sliderValStyle, color: '#6ee7b7' }}>{latitude.toFixed(1)}°</span>
-                    </div>
-                    <input
-                      type="range" min="-90" max="90" step="0.5" value={latitude}
-                      onChange={onLatChange}
-                      style={{ width: '100%', accentColor: '#34d399', marginBottom: '8px' }}
-                    />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      {[{ l: '90°', v: 90, fn: onLat90 }, { l: '0°', v: 0, fn: onLat0 }].map(p => (
-                        <button key={p.v} onClick={p.fn} style={{
-                          fontSize: '10px', fontWeight: 700, fontFamily: FONT_MONO,
-                          textTransform: 'uppercase', letterSpacing: '0.04em',
-                          padding: '5px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                          background: Math.abs(latitude - p.v) < 0.6 ? '#10b981' : '#1a2235',
-                          color:      Math.abs(latitude - p.v) < 0.6 ? '#000'    : '#64748b',
-                        }}>{p.l}</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Rotation slider */}
-                  <div style={SLIDER_BOX_STYLE}>
-                    <div style={SLIDER_ROW_STYLE}>
-                      <span style={{ ...sliderLabelStyle, color: '#67e8f9' }}>Rotation</span>
-                      <span style={{ ...sliderValStyle, color: '#a5f3fc' }}>
-                        {speed === 0 ? 'paused' : `${speed.toFixed(2)}×`}
-                      </span>
-                    </div>
-                    <input
-                      type="range" min="0" max="0.8" step="0.01" value={speed}
-                      onChange={onSpeedChange}
-                      style={{ width: '100%', accentColor: '#22d3ee' }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {showDualSliders && (
-                <>
-                  {/* Sphere speed */}
-                  <div style={SLIDER_BOX_STYLE}>
-                    <div style={SLIDER_ROW_STYLE}>
-                      <span style={{ fontSize: '10px', color: isEcliptic ? '#e879f9' : '#a78bfa', fontWeight: 800, fontFamily: FONT_MONO, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                        Sphere
-                      </span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: '12px', color: isEcliptic ? '#f0abfc' : '#c4b5fd', fontWeight: 700 }}>
-                        {sphereSpeed === 0 ? 'paused' : `${sphereSpeed.toFixed(2)}×`}
-                      </span>
-                    </div>
-                    <input
-                      type="range" min="0" max="0.6" step="0.01" value={sphereSpeed}
-                      onChange={onSphereChange}
-                      style={{ width: '100%', accentColor: isEcliptic ? '#e879f9' : '#a78bfa', marginBottom: '4px' }}
-                    />
-                    <div style={{ fontSize: '9px', color: isEcliptic ? '#4a2060' : '#4a3a6a', fontFamily: FONT_MONO }}>
-                      ★ star / diurnal rotation
-                    </div>
-                  </div>
-
-                  {/* Sun speed */}
-                  <div style={SLIDER_BOX_STYLE}>
-                    <div style={SLIDER_ROW_STYLE}>
-                      <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 800, fontFamily: FONT_MONO, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                        Sun Speed
-                      </span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: '12px', color: '#fde68a', fontWeight: 700 }}>
-                        {sunSpeed === 0 ? 'paused' : `${sunSpeed.toFixed(2)}×`}
-                      </span>
-                    </div>
-                    <input
-                      type="range" min="0" max="2" step="0.05" value={sunSpeed}
-                      onChange={onSunChange}
-                      style={{ width: '100%', accentColor: '#fbbf24', marginBottom: '4px' }}
-                    />
-                    <div style={{ fontSize: '9px', color: '#4a3a20', fontFamily: FONT_MONO }}>
-                      ☀ ecliptic drift
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          <button onClick={onReset} style={RESET_BTN_STYLE}>RESET VIEW</button>
-        </div>
+        {/* Desktop: overlay controls on last step, reset button on other steps */}
+        {!isMobile && isLastStep && controlsOverlay}
+        {resetBtnOnly}
       </div>
+
+      {/* Mobile: controls below canvas */}
+      {isMobile && isLastStep && controlsOverlay}
     </div>
   )
 })
@@ -1321,17 +1336,192 @@ const SYSTEMS = [
   },
 ]
 
+// ─── LEGEND DRAWER (mobile) ───────────────────────────────────────────────────
+function LegendDrawer({ active, isOpen, onClose }) {
+  return (
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            zIndex: 40, backdropFilter: 'blur(2px)',
+          }}
+        />
+      )}
+      {/* Drawer */}
+      <div style={{
+        position: 'fixed', right: 0, top: 0, bottom: 0, width: '240px',
+        background: '#030611', borderLeft: '1px solid rgba(255,255,255,0.07)',
+        zIndex: 50, padding: '24px 18px', overflowY: 'auto',
+        transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', paddingBottom: '12px', borderBottom: `1px solid ${active.color}33` }}>
+          <span style={{ fontSize: '11px', fontFamily: FONT_MONO, letterSpacing: '0.14em', textTransform: 'uppercase', color: active.color, fontWeight: 700 }}>Legend</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4a6080', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 6px' }}>✕</button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '28px' }}>
+          {active.legend.map((item, i) => (
+            <LegendItem key={i} color={item.color} label={item.label} dot={item.dot} />
+          ))}
+        </div>
+
+        <div style={{ paddingTop: '18px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, fontFamily: FONT_MONO, letterSpacing: '0.12em', textTransform: 'uppercase', color: active.color, marginBottom: '16px' }}>
+            {active.coordLabel}
+          </div>
+          {active.coords.map((c, i) => (
+            <CoordDef key={i} symbol={c.symbol} name={c.name} desc={c.desc} color={c.color} />
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeSystemId, setActiveSystemId] = useState('horizontal')
+  const [navOpen,        setNavOpen]        = useState(false)
+  const [legendOpen,     setLegendOpen]     = useState(false)
+  const isMobile = useIsMobile()
+
   const active = useMemo(() => SYSTEMS.find(s => s.id === activeSystemId), [activeSystemId])
 
+  const handleSystemChange = useCallback((id) => {
+    setActiveSystemId(id)
+    setNavOpen(false)
+  }, [])
+
+  // ── MOBILE LAYOUT ──
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#06091a', color: '#e2e8f0', fontFamily: FONT_SANS, overflow: 'hidden' }}>
+        {/* Top bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 16px', height: '52px', flexShrink: 0,
+          background: '#030611', borderBottom: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <button
+            onClick={() => setNavOpen(true)}
+            style={{ background: 'none', border: 'none', color: '#7a90b0', cursor: 'pointer', fontSize: '20px', padding: '4px', lineHeight: 1 }}
+          >☰</button>
+
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: active.color, fontFamily: FONT_SANS }}>{active.label}</div>
+            <div style={{ fontSize: '9px', color: '#253548', fontFamily: FONT_MONO, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{active.sub}</div>
+          </div>
+
+          <button
+            onClick={() => setLegendOpen(true)}
+            style={{ background: 'none', border: 'none', color: '#7a90b0', cursor: 'pointer', fontSize: '16px', padding: '4px', lineHeight: 1, fontFamily: FONT_MONO }}
+          >★</button>
+        </div>
+
+        {/* Main scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px 80px' }}>
+          {active.steps.map((step, i) => (
+            <StepCard
+              key={`${activeSystemId}-${i}`}
+              stepNum={i + 1}
+              data={step}
+              systemId={activeSystemId}
+              accentColor={active.color}
+            />
+          ))}
+        </div>
+
+        {/* Bottom tab bar */}
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          background: '#030611', borderTop: '1px solid rgba(255,255,255,0.07)',
+          display: 'flex', zIndex: 30, paddingBottom: 'env(safe-area-inset-bottom)',
+        }}>
+          {SYSTEMS.map(sys => {
+            const on = activeSystemId === sys.id
+            return (
+              <button
+                key={sys.id}
+                onClick={() => handleSystemChange(sys.id)}
+                style={{
+                  flex: 1, padding: '10px 4px 8px', border: 'none',
+                  background: on ? `${sys.color}0d` : 'transparent',
+                  borderTop: `2px solid ${on ? sys.color : 'transparent'}`,
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: '3px',
+                }}
+              >
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: on ? sys.color : '#1c2c40' }} />
+                <span style={{
+                  fontSize: '9px', fontWeight: 700, color: on ? sys.color : '#364e68',
+                  fontFamily: FONT_MONO, letterSpacing: '0.04em', textTransform: 'uppercase',
+                  lineHeight: 1.2, textAlign: 'center',
+                }}>{sys.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Nav drawer */}
+        <>
+          {navOpen && (
+            <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
+          )}
+          <div style={{
+            position: 'fixed', left: 0, top: 0, bottom: 0, width: '220px',
+            background: '#030611', borderRight: '1px solid rgba(255,255,255,0.07)',
+            zIndex: 50, padding: '20px 10px',
+            transform: navOpen ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ padding: '4px 10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontFamily: FONT_MONO, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#263550', marginBottom: '6px', fontWeight: 900 }}>Celestial Coords</div>
+              <div style={{ fontSize: '16px', fontFamily: FONT_SANS, fontWeight: 700, color: '#c8d8ee', lineHeight: 1.25 }}>Coordinate<br />Systems</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {SYSTEMS.map(sys => {
+                const on = activeSystemId === sys.id
+                return (
+                  <button
+                    key={sys.id}
+                    onClick={() => handleSystemChange(sys.id)}
+                    style={{
+                      padding: '13px 14px', borderRadius: '10px',
+                      border: on ? `1px solid ${sys.color}44` : '1px solid transparent',
+                      background: on ? `${sys.color}0e` : 'transparent',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '4px' }}>
+                      <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: on ? sys.color : '#1c2c40', boxShadow: on ? `0 0 10px ${sys.color}99` : 'none', flexShrink: 0 }} />
+                      <span style={{ fontSize: '13.5px', fontWeight: 700, color: on ? sys.color : '#374e68', fontFamily: FONT_SANS }}>{sys.label}</span>
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: on ? `${sys.color}77` : '#1e2f42', paddingLeft: '16px', fontFamily: FONT_MONO, letterSpacing: '0.04em' }}>{sys.sub}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+
+        {/* Legend drawer */}
+        <LegendDrawer active={active} isOpen={legendOpen} onClose={() => setLegendOpen(false)} />
+      </div>
+    )
+  }
+
+  // ── DESKTOP LAYOUT (original) ──
   return (
     <div style={{
       display: 'flex', height: '100vh', background: '#06091a',
       color: '#e2e8f0', overflow: 'hidden', fontFamily: FONT_SANS,
     }}>
-      {/* ── LEFT NAV ── */}
+      {/* LEFT NAV */}
       <div style={{
         width: '210px', background: '#030611',
         borderRight: '1px solid rgba(255,255,255,0.05)',
@@ -1385,7 +1575,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* MAIN CONTENT */}
       <div style={{
         flex: 1, overflowY: 'auto', padding: '36px 28px', background: '#07091c',
       }}>
@@ -1414,7 +1604,7 @@ export default function App() {
         ))}
       </div>
 
-      {/* ── RIGHT LEGEND ── */}
+      {/* RIGHT LEGEND */}
       <div style={{
         width: '192px', background: '#030611',
         borderLeft: '1px solid rgba(255,255,255,0.05)',
