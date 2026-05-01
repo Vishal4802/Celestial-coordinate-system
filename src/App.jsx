@@ -136,173 +136,6 @@ function makeRingPoints(count = 65) {
 }
 const RING_PTS = makeRingPoints()
 
-// ─── FIRST-FRAME DETECTOR ─────────────────────────────────────────────────────
-function FirstFrameDetector({ onReady }) {
-  const fired = useRef(false)
-  useFrame(() => {
-    if (!fired.current) { fired.current = true; onReady() }
-  })
-  return null
-}
-
-// ─── LOADING PLACEHOLDER ──────────────────────────────────────────────────────
-const STAR_FIELD = [
-  [18,34,1.2,3.1,0.0],[47,12,0.8,2.4,0.5],[83,28,1.0,4.0,1.0],[130,8,1.5,2.8,0.2],
-  [165,45,0.7,3.5,0.8],[182,20,1.1,2.2,0.3],[12,75,0.9,3.8,1.2],[55,160,1.3,2.6,0.1],
-  [25,140,0.6,4.2,0.9],[170,80,1.0,3.0,0.4],[188,155,0.8,2.9,1.4],[145,175,1.2,3.7,0.6],
-  [70,185,0.7,2.3,1.1],[110,190,1.0,4.1,0.7],[8,110,1.4,3.3,0.3],[192,120,0.9,2.7,1.5],
-  [36,52,0.6,3.9,0.8],[175,168,1.1,2.5,0.2],[95,5,0.8,3.6,1.3],[155,130,1.3,2.1,0.5],
-]
-
-const LoadingPlaceholder = memo(function LoadingPlaceholder({ accentColor }) {
-  return (
-    <div style={{
-      width: '100%', height: '100%', background: '#020408',
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: '18px',
-    }}>
-      <svg viewBox="0 0 200 200" width="154" height="154">
-        {/* Star field — deterministic positions, twinkling */}
-        {STAR_FIELD.map(([cx, cy, r, dur, delay], i) => (
-          <circle key={i} cx={cx} cy={cy} r={r} fill="white" opacity="0.35">
-            <animate attributeName="opacity" values="0.08;0.65;0.08"
-              dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite"/>
-          </circle>
-        ))}
-
-        {/* Outer sphere circle — slow clockwise drift */}
-        <g>
-          <animateTransform attributeName="transform" type="rotate"
-            from="0 100 100" to="360 100 100" dur="16s" repeatCount="indefinite"/>
-          <circle cx="100" cy="100" r="78" fill="none"
-            stroke={accentColor} strokeWidth="0.8" strokeDasharray="5 11" opacity="0.28"/>
-        </g>
-
-        {/* Celestial equator — tilted ellipse, counter-rotates */}
-        <g>
-          <animateTransform attributeName="transform" type="rotate"
-            from="0 100 100" to="-360 100 100" dur="9s" repeatCount="indefinite"/>
-          <ellipse cx="100" cy="100" rx="70" ry="22" fill="none"
-            stroke="#00ff88" strokeWidth="0.9" strokeDasharray="4 8" opacity="0.45"/>
-        </g>
-
-        {/* Horizon ring — static */}
-        <ellipse cx="100" cy="138" rx="72" ry="13" fill="none"
-          stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
-
-        {/* Polar axis */}
-        <line x1="100" y1="14" x2="100" y2="186"
-          stroke="#ffd700" strokeWidth="0.6" strokeDasharray="3 6" opacity="0.35"/>
-
-        {/* NCP dot — pulses */}
-        <circle cx="100" cy="16" r="2.5" fill="#ffd700" opacity="0.6">
-          <animate attributeName="opacity" values="0.25;0.9;0.25" dur="2.6s" repeatCount="indefinite"/>
-        </circle>
-
-        {/* Orbiting star with magenta trail */}
-        <g>
-          <animateTransform attributeName="transform" type="rotate"
-            from="0 100 100" to="360 100 100" dur="6s" repeatCount="indefinite"/>
-          {/* Trail from centre to star */}
-          <line x1="100" y1="95" x2="100" y2="29"
-            stroke="#ff00ff" strokeWidth="0.6" strokeDasharray="3 4" opacity="0.35"/>
-          {/* Soft glow */}
-          <circle cx="100" cy="23" r="8" fill="#ffe066" opacity="0.10">
-            <animate attributeName="opacity" values="0.04;0.18;0.04" dur="6s" repeatCount="indefinite"/>
-          </circle>
-          {/* Star dot */}
-          <circle cx="100" cy="23" r="3.8" fill="#ffe066">
-            <animate attributeName="opacity" values="0.5;1;0.5" dur="6s" repeatCount="indefinite"/>
-          </circle>
-        </g>
-
-        {/* Observer dot — breathes */}
-        <circle cx="100" cy="100" r="5" fill="#2563eb">
-          <animate attributeName="r"       values="4;6.5;4"   dur="2.4s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.6;1;0.6" dur="2.4s" repeatCount="indefinite"/>
-        </circle>
-      </svg>
-
-      {/* "RENDERING · · ·" */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '5px',
-        fontFamily: FONT_MONO, fontSize: '9px',
-        letterSpacing: '0.2em', textTransform: 'uppercase',
-        color: accentColor, opacity: 0.45,
-      }}>
-        <span>Rendering</span>
-        {[0, 0.4, 0.8].map((delay, i) => (
-          <svg key={i} width="4" height="4" viewBox="0 0 4 4">
-            <circle cx="2" cy="2" r="1.6" fill={accentColor}>
-              <animate attributeName="opacity" values="0.1;1;0.1"
-                dur="1.2s" begin={`${delay}s`} repeatCount="indefinite"/>
-              <animate attributeName="r" values="1;1.9;1"
-                dur="1.2s" begin={`${delay}s`} repeatCount="indefinite"/>
-            </circle>
-          </svg>
-        ))}
-      </div>
-    </div>
-  )
-})
-
-// ─── VISIBILITY CANVAS ────────────────────────────────────────────────────────
-// Mounts the Canvas only when this card scrolls near the viewport (fixes the
-// WebGL-context-limit bug on mobile) and cross-fades from the loading
-// placeholder into the live 3-D scene on first painted frame.
-function VisibilityCanvas({ children, camera, accentColor }) {
-  const wrapRef  = useRef()
-  const readyRef = useRef(false)
-  const [mounted, setMounted] = useState(false)
-  const [ready,   setReady]   = useState(false)
-
-  useEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) setMounted(true) },
-      { rootMargin: '300px 0px', threshold: 0 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  const handleReady = useCallback(() => {
-    if (readyRef.current) return
-    readyRef.current = true
-    setTimeout(() => setReady(true), 80)
-  }, [])
-
-  return (
-    <div ref={wrapRef} style={{ width: '100%', height: '100%', position: 'relative', background: '#020408' }}>
-
-      {/* Loading overlay — fades out once canvas is painted */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 2,
-        opacity: ready ? 0 : 1,
-        transition: 'opacity 0.75s ease',
-        pointerEvents: ready ? 'none' : 'auto',
-      }}>
-        <LoadingPlaceholder accentColor={accentColor} />
-      </div>
-
-      {/* Canvas — fades in on first rendered frame */}
-      {mounted && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 1,
-          opacity: ready ? 1 : 0,
-          transition: 'opacity 0.75s ease',
-        }}>
-          <Canvas camera={camera}>
-            {children}
-            <FirstFrameDetector onReady={handleReady} />
-          </Canvas>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── CELESTIAL / HORIZONTAL SCENE ────────────────────────────────────────────
 function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
   const equatorialGroup = useRef()
@@ -1271,6 +1104,7 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
 
   const canvasHeight = isMobile ? '320px' : '480px'
 
+  // On mobile, controls go below canvas instead of overlaid
   const controlsOverlay = isLastStep && (
     <div style={isMobile ? {
       padding: '12px 14px',
@@ -1372,8 +1206,11 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
     </div>
   )
 
+  // On mobile: reset button floats in canvas, controls below
   const resetBtnOnly = !isLastStep && (
-    <div style={{ position: 'absolute', bottom: '12px', right: '12px', zIndex: 10 }}>
+    <div style={{
+      position: 'absolute', bottom: '12px', right: '12px',
+    }}>
       <button onClick={onReset} style={RESET_BTN_STYLE}>RESET VIEW</button>
     </div>
   )
@@ -1403,12 +1240,9 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
         }}>{data.desc}</p>
       </div>
 
-      {/* 3-D Canvas — wrapped in VisibilityCanvas for lazy mount + loading animation */}
+      {/* 3-D Canvas */}
       <div style={{ height: canvasHeight, position: 'relative' }}>
-        <VisibilityCanvas
-          camera={{ position: [1.8, 1.2, 1.8], fov: 40 }}
-          accentColor={accentColor}
-        >
+        <Canvas camera={{ position: [1.8, 1.2, 1.8], fov: 40 }}>
           <color attach="background" args={['#020408']} />
           <ambientLight intensity={0.6} />
           <pointLight position={[5, 5, 5]} intensity={1} />
@@ -1423,9 +1257,9 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
           }
 
           <OrbitControls ref={controlsRef} makeDefault minDistance={1} maxDistance={4} />
-        </VisibilityCanvas>
+        </Canvas>
 
-        {/* Desktop: overlay controls on last step */}
+        {/* Desktop: overlay controls on last step, reset button on other steps */}
         {!isMobile && isLastStep && controlsOverlay}
         {resetBtnOnly}
       </div>
@@ -1506,6 +1340,7 @@ const SYSTEMS = [
 function LegendDrawer({ active, isOpen, onClose }) {
   return (
     <>
+      {/* Backdrop */}
       {isOpen && (
         <div
           onClick={onClose}
@@ -1515,6 +1350,7 @@ function LegendDrawer({ active, isOpen, onClose }) {
           }}
         />
       )}
+      {/* Drawer */}
       <div style={{
         position: 'fixed', right: 0, top: 0, bottom: 0, width: '240px',
         background: '#030611', borderLeft: '1px solid rgba(255,255,255,0.07)',
@@ -1679,7 +1515,7 @@ export default function App() {
     )
   }
 
-  // ── DESKTOP LAYOUT ──
+  // ── DESKTOP LAYOUT (original) ──
   return (
     <div style={{
       display: 'flex', height: '100vh', background: '#06091a',
