@@ -9,9 +9,9 @@ import * as THREE from 'three'
 const FONT_MONO = "https://fonts.gstatic.com/s/jetbrainsmono/v18/t6q_o04_7S6X_7pS9P_9L9T6Z0_9V18.ttf"
 const FONT_SANS = "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf"
 
-const R = 0.8
-const OBL = 23.44 * Math.PI / 180
-const DEG = Math.PI / 180
+const R    = 0.8
+const OBL  = 23.44 * Math.PI / 180
+const DEG  = Math.PI / 180
 
 const STAR_DECLINATION = 0.439
 const STAR_INITIAL_HA  = 1.318
@@ -20,6 +20,7 @@ const STAR_DEC_EQ2     = 22 * DEG
 const STAR_LAMBDA      = 65 * DEG
 const STAR_BETA        = 30 * DEG
 
+// Scratch vectors — only used inside useMemo (sync, no interleaving issues)
 const _v1 = new THREE.Vector3()
 const _v2 = new THREE.Vector3()
 
@@ -33,8 +34,8 @@ function buildDottedGeometry(points) {
 // ─── DOTTED LINE ──────────────────────────────────────────────────────────────
 const DottedLine = memo(function DottedLine({ start, end, color, segments = 28 }) {
   const geometry = useMemo(() => {
-    const s  = new THREE.Vector3(...start)
-    const e  = new THREE.Vector3(...end)
+    const s   = new THREE.Vector3(...start)
+    const e   = new THREE.Vector3(...end)
     const pts = []
     for (let i = 0; i < segments; i++) {
       pts.push(_v1.clone().lerpVectors(s, e, i / segments))
@@ -57,7 +58,7 @@ const DottedCircle = memo(function DottedCircle({
   radius, rotation = [0, 0, 0], color, segments = 64
 }) {
   const geometry = useMemo(() => {
-    const pts = []
+    const pts  = []
     const step = Math.PI * 2 / segments
     for (let i = 0; i < segments; i++) {
       const a1 = i * step
@@ -104,14 +105,10 @@ const DottedArc = memo(function DottedArc({
 // ─── DECLINATION ARC ─────────────────────────────────────────────────────────
 const DeclinationArc = memo(function DeclinationArc({ radius, starDeclination }) {
   const geometry = useMemo(() => {
-    const segs     = 44
+    const segs      = 44
     const equatorPt = new THREE.Vector3(0, 0, radius)
-    const starPt    = new THREE.Vector3(
-      0,
-      Math.sin(starDeclination) * radius,
-      Math.cos(starDeclination) * radius
-    )
-    const pts = []
+    const starPt    = new THREE.Vector3(0, Math.sin(starDeclination) * radius, Math.cos(starDeclination) * radius)
+    const pts       = []
     for (let i = 0; i < segs; i++) {
       pts.push(_v1.clone().lerpVectors(equatorPt, starPt, i / segs).normalize().multiplyScalar(radius))
       pts.push(_v2.clone().lerpVectors(equatorPt, starPt, (i + 0.46) / segs).normalize().multiplyScalar(radius))
@@ -137,10 +134,13 @@ function makeRingPoints(count = 65) {
 const RING_PTS = makeRingPoints()
 
 // ─── CELESTIAL / HORIZONTAL SCENE ────────────────────────────────────────────
-function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
+const CelestialScene = memo(function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
   const equatorialGroup = useRef()
   const starRef         = useRef()
   const guideArcGeoRef  = useRef()
+  const _fa = useRef(new THREE.Vector3())
+  const _fb = useRef(new THREE.Vector3())
+  const frameCount = useRef(0)
 
   const [starCoords, setStarCoords] = useState(null)
 
@@ -149,8 +149,7 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
   const altArcPts = useMemo(() => {
     if (!starCoords?.pos || !starCoords?.horizonProj) return null
     return Array.from({ length: 24 }, (_, i) => {
-      const p = _v1.clone().lerpVectors(starCoords.horizonProj, starCoords.pos, i / 23)
-        .normalize().multiplyScalar(R)
+      const p = _v1.clone().lerpVectors(starCoords.horizonProj, starCoords.pos, i / 23).normalize().multiplyScalar(R)
       return [p.x, p.y, p.z]
     })
   }, [starCoords?.pos?.x, starCoords?.pos?.y, starCoords?.pos?.z])
@@ -159,43 +158,45 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
     if (!starCoords?.horizonProj) return null
     const north = new THREE.Vector3(0, 0, R)
     return Array.from({ length: 24 }, (_, i) => {
-      const p = _v1.clone().lerpVectors(north, starCoords.horizonProj, i / 23)
-        .normalize().multiplyScalar(R)
+      const p = _v1.clone().lerpVectors(north, starCoords.horizonProj, i / 23).normalize().multiplyScalar(R)
       return [p.x, p.y, p.z]
     })
   }, [starCoords?.horizonProj?.x, starCoords?.horizonProj?.z])
 
   useFrame((_, delta) => {
+    frameCount.current++
     if (equatorialGroup.current && rotationSpeed > 0)
       equatorialGroup.current.rotation.y += delta * rotationSpeed
 
-    if (starRef.current) {
-      const wp = new THREE.Vector3()
-      starRef.current.getWorldPosition(wp)
+    if (!starRef.current) return
 
-      const alt    = Math.asin(THREE.MathUtils.clamp(wp.y / R, -1, 1))
-      let   az     = Math.atan2(wp.x, wp.z)
-      if (az < 0) az += Math.PI * 2
+    const wp    = new THREE.Vector3()
+    starRef.current.getWorldPosition(wp)
 
-      const hProj = new THREE.Vector3(wp.x, 0, wp.z).normalize().multiplyScalar(R)
+    const alt   = Math.asin(THREE.MathUtils.clamp(wp.y / R, -1, 1))
+    let   az    = Math.atan2(wp.x, wp.z)
+    if (az < 0) az += Math.PI * 2
 
+    const hProj = new THREE.Vector3(wp.x, 0, wp.z).normalize().multiplyScalar(R)
+
+    if (frameCount.current % 2 === 0) {
       setStarCoords({
         az:          (az  * 180 / Math.PI).toFixed(1),
         alt:         (alt * 180 / Math.PI).toFixed(1),
         pos:         wp.clone(),
-        horizonProj: hProj,
+        horizonProj: hProj.clone(),
       })
+    }
 
-      if (guideArcGeoRef.current) {
-        const zenith = new THREE.Vector3(0, 1, 0)
-        const hNorm  = hProj.clone().normalize()
-        const pts    = []
-        for (let i = 0; i < 44; i++) {
-          pts.push(_v1.clone().lerpVectors(zenith, hNorm, i / 44).normalize().multiplyScalar(R))
-          pts.push(_v2.clone().lerpVectors(zenith, hNorm, (i + 0.46) / 44).normalize().multiplyScalar(R))
-        }
-        guideArcGeoRef.current.setFromPoints(pts)
+    if (guideArcGeoRef.current) {
+      const zenith = new THREE.Vector3(0, 1, 0)
+      const hNorm  = hProj.clone().normalize()
+      const pts    = []
+      for (let i = 0; i < 44; i++) {
+        pts.push(_fa.current.lerpVectors(zenith, hNorm, i / 44).normalize().multiplyScalar(R).clone())
+        pts.push(_fb.current.lerpVectors(zenith, hNorm, (i + 0.46) / 44).normalize().multiplyScalar(R).clone())
       }
+      guideArcGeoRef.current.setFromPoints(pts)
     }
   })
 
@@ -300,22 +301,25 @@ function CelestialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
       </mesh>
     </group>
   )
-}
+})
 
 // ─── EQUATORIAL I SCENE ───────────────────────────────────────────────────────
-function EquatorialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
+const EquatorialScene = memo(function EquatorialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
   const equatorialGroupRef = useRef()
   const starRef            = useRef()
-  const [coords, setCoords] = useState(null)
-  const [haVecs, setHaVecs] = useState(null)
+  const frameCount         = useRef(0)
+  const [coords,  setCoords]  = useState(null)
+  const [haVecs,  setHaVecs]  = useState(null)
 
   const tilt = useMemo(() => latitude * DEG, [latitude])
 
   useFrame((_, delta) => {
+    frameCount.current++
     if (equatorialGroupRef.current && rotationSpeed > 0)
       equatorialGroupRef.current.rotation.y += delta * rotationSpeed
 
     if (!starRef.current || !config.showStar) return
+    if (frameCount.current % 2 !== 0) return
 
     const wp = new THREE.Vector3()
     starRef.current.getWorldPosition(wp)
@@ -339,14 +343,25 @@ function EquatorialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
 
     setCoords({ dec: (dec * 180 / Math.PI).toFixed(1), ha: (ha * 180 / Math.PI).toFixed(1), pos: wp.clone() })
 
-    if (config.showHAarc)
+    if (config.showHAarc) {
       setHaVecs({
-        ncpW:      ncpW.clone(),
+        ncpW,
         starPos:   wp.clone(),
         starEqProj,
         zenith:    new THREE.Vector3(0, R, 0),
       })
+    }
   })
+
+  // ── live angle-visualization lines (like CelestialScene does for Az/Alt) ──
+  const decArcPts = useMemo(() => {
+    if (!haVecs?.starPos || !haVecs?.starEqProj) return null
+    return Array.from({ length: 24 }, (_, i) => {
+      const p = _v1.clone().lerpVectors(haVecs.starEqProj, haVecs.starPos, i / 23).normalize().multiplyScalar(R)
+      return [p.x, p.y, p.z]
+    })
+  }, [haVecs?.starPos?.x, haVecs?.starPos?.y, haVecs?.starPos?.z,
+      haVecs?.starEqProj?.x, haVecs?.starEqProj?.y, haVecs?.starEqProj?.z])
 
   return (
     <group>
@@ -406,6 +421,26 @@ function EquatorialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
         </>
       )}
 
+      {/* ── Angle visualization lines: center → star (dec line) + center → equator proj ── */}
+      {config.showStar && coords?.pos && haVecs && (
+        <group>
+          {/* Dashed line from center to star */}
+          <Line
+            points={[[0, 0, 0], [coords.pos.x, coords.pos.y, coords.pos.z]]}
+            color="#ff00ff" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+          />
+          {/* Dashed line from center to equatorial projection (foot) */}
+          <Line
+            points={[[0, 0, 0], [haVecs.starEqProj.x, haVecs.starEqProj.y, haVecs.starEqProj.z]]}
+            color="#ff6600" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+          />
+          {/* Live arc from equator-foot to star = Declination */}
+          {decArcPts && (
+            <Line points={decArcPts} color="#ff00ff" lineWidth={2.5} />
+          )}
+        </group>
+      )}
+
       {config.showStar && coords?.pos && (
         <group position={[coords.pos.x * 1.22, coords.pos.y * 1.22, coords.pos.z * 1.22]}>
           <Text fontSize={0.036} color="#ffe066" anchorX="left" outlineWidth={0.005} outlineColor="#000">
@@ -420,7 +455,7 @@ function EquatorialScene({ config, rotationSpeed = 0, latitude = 28.6 }) {
       </mesh>
     </group>
   )
-}
+})
 
 // ─── ECLIPTIC HELPERS ─────────────────────────────────────────────────────────
 function makeEclipticPoint(lambda) {
@@ -431,12 +466,12 @@ function makeEclipticPoint(lambda) {
   )
 }
 
-const EQ2_STAR_POS = new THREE.Vector3(
+const EQ2_STAR_POS  = new THREE.Vector3(
   R * Math.cos(STAR_DEC_EQ2) * Math.cos(STAR_RA_EQ2),
   R * Math.sin(STAR_DEC_EQ2),
   R * Math.cos(STAR_DEC_EQ2) * Math.sin(STAR_RA_EQ2)
 )
-const EQ2_STAR_FOOT = new THREE.Vector3(R * Math.cos(STAR_RA_EQ2), 0, R * Math.sin(STAR_RA_EQ2))
+const EQ2_STAR_FOOT      = new THREE.Vector3(R * Math.cos(STAR_RA_EQ2), 0, R * Math.sin(STAR_RA_EQ2))
 const EQ2_STATIC_SUN_POS = makeEclipticPoint(55 * DEG)
 
 const EQ2_RA_ARC_PTS = Array.from({ length: 32 }, (_, i) => {
@@ -466,18 +501,20 @@ const EQ2_RA_LABEL_POS  = [R * Math.cos(STAR_RA_EQ2 * 0.5) * 0.74, 0.055, R * Ma
 const EQ2_DEC_LABEL_POS = [EQ2_STAR_POS.x * 0.79, EQ2_STAR_POS.y * 0.55 + 0.03, EQ2_STAR_POS.z * 0.79]
 
 // ─── EQUATORIAL II SCENE ─────────────────────────────────────────────────────
-function EquatorialIIScene({ config, sunSpeed = 0 }) {
-  const sunAngle          = useRef(0.96)
+const EquatorialIIScene = memo(function EquatorialIIScene({ config, sunSpeed = 0 }) {
+  const sunAngle            = useRef(0.96)
+  const frameCount          = useRef(0)
   const [sunPos, setSunPos] = useState(() => makeEclipticPoint(0.96))
   const equatorialGroupRef  = useRef()
 
   const sphereRotSpeed = config.rotateSphere ? (config.sphereSpeed ?? 0.18) : 0
 
   useFrame((_, delta) => {
+    frameCount.current++
     if (equatorialGroupRef.current && sphereRotSpeed > 0)
       equatorialGroupRef.current.rotation.y += delta * sphereRotSpeed
 
-    if (config.showSunMotion) {
+    if (config.showSunMotion && frameCount.current % 2 === 0) {
       sunAngle.current = (sunAngle.current + delta * (config.sunSpeed ?? 0.5) * 0.38) % (Math.PI * 2)
       setSunPos(makeEclipticPoint(sunAngle.current))
     }
@@ -535,6 +572,15 @@ function EquatorialIIScene({ config, sunSpeed = 0 }) {
           <Line
             points={[[0, 0, 0], EQ2_STAR_FOOT.toArray()]}
             color="#1a3a4a" lineWidth={1} dashed dashSize={0.04} gapSize={0.035}
+          />
+          {/* ── Angle-viz lines: center→star (magenta) + center→equator-foot (orange) ── */}
+          <Line
+            points={[[0, 0, 0], EQ2_STAR_POS.toArray()]}
+            color="#c026d3" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+          />
+          <Line
+            points={[[0, 0, 0], EQ2_STAR_FOOT.toArray()]}
+            color="#00ccff" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
           />
           <mesh position={EQ2_STAR_POS.toArray()}>
             <sphereGeometry args={[0.020]} /><meshBasicMaterial color="#ffffff" />
@@ -597,14 +643,16 @@ function EquatorialIIScene({ config, sunSpeed = 0 }) {
       </mesh>
     </group>
   )
-}
+})
 
 // ─── STAR LABEL (Equatorial II – rotating) ────────────────────────────────────
 function StarLabel2({ equatorialGroupRef, starLocalPos, showArcs = false }) {
   const [worldPos, setWorldPos] = useState(null)
+  const frameCount = useRef(0)
 
   useFrame(() => {
-    if (!equatorialGroupRef.current) return
+    frameCount.current++
+    if (!equatorialGroupRef.current || frameCount.current % 2 !== 0) return
     const wp = new THREE.Vector3(starLocalPos.x, starLocalPos.y, starLocalPos.z)
     equatorialGroupRef.current.localToWorld(wp)
 
@@ -659,6 +707,15 @@ function StarLabel2({ equatorialGroupRef, starLocalPos, showArcs = false }) {
             points={[[0, 0, 0], [arcs.footX, 0, arcs.footZ]]}
             color="#1a3a4a" lineWidth={1} dashed dashSize={0.04} gapSize={0.035}
           />
+          {/* ── Angle-viz lines for rotating sphere: center→star + center→foot ── */}
+          <Line
+            points={[[0, 0, 0], [x, y, z]]}
+            color="#c026d3" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+          />
+          <Line
+            points={[[0, 0, 0], [arcs.footX, 0, arcs.footZ]]}
+            color="#00ccff" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+          />
           <Text position={arcs.raMid}  fontSize={0.033} color="#00ccff" outlineWidth={0.003} outlineColor="#000">α</Text>
           <Text position={arcs.decMid} fontSize={0.033} color="#c026d3" outlineWidth={0.003} outlineColor="#000">δ</Text>
         </>
@@ -674,7 +731,7 @@ function StarLabel2({ equatorialGroupRef, starLocalPos, showArcs = false }) {
 
 // ─── ECLIPTIC PRECOMPUTED CONSTANTS ──────────────────────────────────────────
 const ECL_NEP_DIR = new THREE.Vector3(0, Math.cos(OBL), Math.sin(OBL))
-const ECL_NEP_POS = new THREE.Vector3(0, R * Math.cos(OBL),  R * Math.sin(OBL))
+const ECL_NEP_POS = new THREE.Vector3(0,  R * Math.cos(OBL),  R * Math.sin(OBL))
 const ECL_SEP_POS = new THREE.Vector3(0, -R * Math.cos(OBL), -R * Math.sin(OBL))
 const ECL_STATIC_SUN_POS = makeEclipticPoint(110 * DEG)
 
@@ -699,19 +756,21 @@ const ECL_LAT_ARC_PTS = Array.from({ length: 28 }, (_, i) => {
   return [p.x, p.y, p.z]
 })
 const ECL_LON_MID_PT = makeEclipticPoint(STAR_LAMBDA * 0.5)
-const ECL_LAT_MID_PT = (() => {
-  return _v1.clone().lerpVectors(ECL_FOOT_POS, ECL_STAR_POS, 0.5).normalize().multiplyScalar(R * 0.82)
-})()
+const ECL_LAT_MID_PT = (() =>
+  _v1.clone().lerpVectors(ECL_FOOT_POS, ECL_STAR_POS, 0.5).normalize().multiplyScalar(R * 0.82)
+)()
 const ECL_DIURNAL_RADIUS = Math.sqrt(ECL_STAR_POS.x ** 2 + ECL_STAR_POS.z ** 2)
 
 // ─── ECLIPTIC SCENE ───────────────────────────────────────────────────────────
-function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
-  const sunAngle          = useRef(0.96)
+const EclipticScene = memo(function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
+  const sunAngle            = useRef(0.96)
+  const frameCount          = useRef(0)
   const [sunPos, setSunPos] = useState(() => makeEclipticPoint(0.96))
   const equatorialGroupRef  = useRef()
 
   useFrame((_, delta) => {
-    if (config.showSunMotion) {
+    frameCount.current++
+    if (config.showSunMotion && frameCount.current % 2 === 0) {
       sunAngle.current = (sunAngle.current + delta * sunSpeed * 0.38) % (Math.PI * 2)
       setSunPos(makeEclipticPoint(sunAngle.current))
     }
@@ -753,26 +812,15 @@ function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
 
       {config.showEclPoles && (
         <>
-          <DottedLine
-            start={ECL_NEP_POS.toArray()}
-            end={ECL_SEP_POS.toArray()}
-            color="#e879f9"
-            segments={32}
-          />
+          <DottedLine start={ECL_NEP_POS.toArray()} end={ECL_SEP_POS.toArray()} color="#e879f9" segments={32} />
           <mesh position={ECL_NEP_POS.toArray()}>
             <sphereGeometry args={[0.022]} /><meshBasicMaterial color="#e879f9" />
           </mesh>
-          <Text
-            position={[ECL_NEP_POS.x + 0.06, ECL_NEP_POS.y + 0.10, ECL_NEP_POS.z]}
-            fontSize={0.048} color="#e879f9" outlineWidth={0.004} outlineColor="#000"
-          >NEP</Text>
+          <Text position={[ECL_NEP_POS.x + 0.06, ECL_NEP_POS.y + 0.10, ECL_NEP_POS.z]} fontSize={0.048} color="#e879f9" outlineWidth={0.004} outlineColor="#000">NEP</Text>
           <mesh position={ECL_SEP_POS.toArray()}>
             <sphereGeometry args={[0.022]} /><meshBasicMaterial color="#e879f9" />
           </mesh>
-          <Text
-            position={[ECL_SEP_POS.x + 0.06, ECL_SEP_POS.y - 0.12, ECL_SEP_POS.z]}
-            fontSize={0.048} color="#e879f9" outlineWidth={0.004} outlineColor="#000"
-          >SEP</Text>
+          <Text position={[ECL_SEP_POS.x + 0.06, ECL_SEP_POS.y - 0.12, ECL_SEP_POS.z]} fontSize={0.048} color="#e879f9" outlineWidth={0.004} outlineColor="#000">SEP</Text>
         </>
       )}
 
@@ -796,6 +844,15 @@ function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
           <Line
             points={[[0, 0, 0], ECL_FOOT_POS.toArray()]}
             color="#1a3a4a" lineWidth={1} dashed dashSize={0.04} gapSize={0.035}
+          />
+          {/* ── Angle-viz lines: center→star (magenta) + center→ecliptic-foot (cyan) ── */}
+          <Line
+            points={[[0, 0, 0], ECL_STAR_POS.toArray()]}
+            color="#c026d3" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+          />
+          <Line
+            points={[[0, 0, 0], ECL_FOOT_POS.toArray()]}
+            color="#00ccff" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
           />
           <mesh position={ECL_FOOT_POS.toArray()}>
             <sphereGeometry args={[0.014]} /><meshBasicMaterial color="#aaaaaa" />
@@ -860,7 +917,7 @@ function EclipticScene({ config, sunSpeed = 0.5, sphereSpeed = 0.18 }) {
       </mesh>
     </group>
   )
-}
+})
 
 // ─── STAR LABEL ECLIPTIC LIVE ─────────────────────────────────────────────────
 const ECL_X_AXIS = new THREE.Vector3(1, 0, 0)
@@ -871,9 +928,11 @@ function StarLabelEclipticLive({ equatorialGroupRef, starLocalPos, nepPos }) {
     x: starLocalPos.x, y: starLocalPos.y, z: starLocalPos.z,
     lambda: STAR_LAMBDA, beta: STAR_BETA,
   })
+  const frameCount = useRef(0)
 
   useFrame(() => {
-    if (!equatorialGroupRef.current) return
+    frameCount.current++
+    if (!equatorialGroupRef.current || frameCount.current % 2 !== 0) return
     const pos = new THREE.Vector3(starLocalPos.x, starLocalPos.y, starLocalPos.z)
     equatorialGroupRef.current.localToWorld(pos)
 
@@ -907,9 +966,9 @@ function StarLabelEclipticLive({ equatorialGroupRef, starLocalPos, nepPos }) {
         const p = _v1.clone().lerpVectors(footV, starV, i / 27).normalize().multiplyScalar(R)
         return [p.x, p.y, p.z]
       }),
-      lonMid:  makeEclipticPoint(lambda * 0.5),
-      latMid:  _v1.clone().lerpVectors(footV, starV, 0.5).normalize().multiplyScalar(R * 0.82),
-      foot:    footPos,
+      lonMid: makeEclipticPoint(lambda * 0.5),
+      latMid: _v1.clone().lerpVectors(footV, starV, 0.5).normalize().multiplyScalar(R * 0.82),
+      foot:   footPos,
     }
   }, [wp.x, wp.y, wp.z, wp.lambda])
 
@@ -923,6 +982,15 @@ function StarLabelEclipticLive({ equatorialGroupRef, starLocalPos, nepPos }) {
       <Line
         points={[[0, 0, 0], arcs.foot.toArray()]}
         color="#1a3a4a" lineWidth={1} dashed dashSize={0.04} gapSize={0.035}
+      />
+      {/* ── Angle-viz lines for rotating ecliptic sphere ── */}
+      <Line
+        points={[[0, 0, 0], [x, y, z]]}
+        color="#c026d3" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
+      />
+      <Line
+        points={[[0, 0, 0], arcs.foot.toArray()]}
+        color="#00ccff" lineWidth={1} dashed dashSize={0.05} gapSize={0.04}
       />
       <mesh position={arcs.foot.toArray()}>
         <sphereGeometry args={[0.014]} /><meshBasicMaterial color="#aaaaaa" />
@@ -1062,6 +1130,119 @@ function useIsMobile() {
   return isMobile
 }
 
+// ─── IN-VIEW HOOK ─────────────────────────────────────────────────────────────
+function useInView(ref, rootMargin = '180px') {
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setInView(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true)
+          io.disconnect()
+        }
+      },
+      { rootMargin }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  return inView
+}
+
+// ─── STARFIELD LOADING PLACEHOLDER ───────────────────────────────────────────
+// Animated SVG starfield shown while the WebGL canvas lazy-loads
+function StarfieldPlaceholder({ accentColor, height }) {
+  const canvasRef = useRef(null)
+  const animRef   = useRef(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const W   = canvas.offsetWidth  || 600
+    const H   = canvas.offsetHeight || parseInt(height, 10) || 480
+
+    canvas.width  = W
+    canvas.height = H
+
+    // Generate random stars
+    const stars = Array.from({ length: 160 }, () => ({
+      x:    Math.random() * W,
+      y:    Math.random() * H,
+      r:    Math.random() * 1.4 + 0.3,
+      phase: Math.random() * Math.PI * 2,
+      speed: Math.random() * 0.8 + 0.4,
+    }))
+
+    // Slow-rotating dotted circle (like the celestial equator preview)
+    let angle = 0
+
+    function draw(t) {
+      ctx.clearRect(0, 0, W, H)
+
+      // Background
+      ctx.fillStyle = '#020408'
+      ctx.fillRect(0, 0, W, H)
+
+      // Stars
+      stars.forEach(s => {
+        const brightness = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.001 * s.speed + s.phase))
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(180,210,255,${brightness.toFixed(2)})`
+        ctx.fill()
+      })
+
+      // Dotted circle (celestial equator hint)
+      const cx  = W / 2
+      const cy  = H / 2
+      const rad = Math.min(W, H) * 0.32
+      const segs = 48
+      for (let i = 0; i < segs; i++) {
+        const a1 = angle + (i / segs) * Math.PI * 2
+        const a2 = angle + ((i + 0.42) / segs) * Math.PI * 2
+        ctx.beginPath()
+        ctx.arc(cx, cy, rad, a1, a2)
+        ctx.strokeStyle = `${accentColor}55`
+        ctx.lineWidth   = 1.5
+        ctx.stroke()
+      }
+      angle += 0.003
+
+      // Small glowing center dot
+      ctx.beginPath()
+      ctx.arc(cx, cy, 5, 0, Math.PI * 2)
+      ctx.fillStyle = '#2563eb'
+      ctx.fill()
+
+      // Pulsing ring around center
+      const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.002))
+      ctx.beginPath()
+      ctx.arc(cx, cy, 18 * pulse, 0, Math.PI * 2)
+      ctx.strokeStyle = `${accentColor}${Math.round(pulse * 80).toString(16).padStart(2,'0')}`
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      animRef.current = requestAnimationFrame(draw)
+    }
+
+    animRef.current = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(animRef.current)
+  }, [accentColor, height])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ width: '100%', height: '100%', display: 'block' }}
+    />
+  )
+}
+
 // ─── STEP CARD ────────────────────────────────────────────────────────────────
 const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }) {
   const isEquatorial1 = systemId === 'equatorial1'
@@ -1076,7 +1257,20 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
   const [latitude,    setLatitude]    = useState(28.6)
   const [sunSpeed,    setSunSpeed]    = useState(0.5)
   const [sphereSpeed, setSphereSpeed] = useState(0.18)
-  const controlsRef = useRef()
+
+  const controlsRef        = useRef()
+  const canvasContainerRef = useRef()
+
+  const canvasReady = useInView(canvasContainerRef)
+
+  const frameloop = useMemo(() => {
+    const cfg = data.config
+    if (isLastStep)                   return 'always'
+    if (cfg.rotateSphere)             return 'always'
+    if (cfg.showSunMotion)            return 'always'
+    if (cfg.showStar && (systemId === 'horizontal' || systemId === 'equatorial1')) return 'always'
+    return 'demand'
+  }, [data.config, isLastStep, systemId])
 
   const dynamicConfig = useMemo(() => {
     if (!((isEquatorial2 || isEcliptic) && data.config.rotateSphere)) return data.config
@@ -1104,7 +1298,6 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
 
   const canvasHeight = isMobile ? '320px' : '480px'
 
-  // On mobile, controls go below canvas instead of overlaid
   const controlsOverlay = isLastStep && (
     <div style={isMobile ? {
       padding: '12px 14px',
@@ -1206,11 +1399,8 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
     </div>
   )
 
-  // On mobile: reset button floats in canvas, controls below
   const resetBtnOnly = !isLastStep && (
-    <div style={{
-      position: 'absolute', bottom: '12px', right: '12px',
-    }}>
+    <div style={{ position: 'absolute', bottom: '12px', right: '12px' }}>
       <button onClick={onReset} style={RESET_BTN_STYLE}>RESET VIEW</button>
     </div>
   )
@@ -1240,31 +1430,46 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
         }}>{data.desc}</p>
       </div>
 
-      {/* 3-D Canvas */}
-      <div style={{ height: canvasHeight, position: 'relative' }}>
-        <Canvas camera={{ position: [1.8, 1.2, 1.8], fov: 40 }}>
-          <color attach="background" args={['#020408']} />
-          <ambientLight intensity={0.6} />
-          <pointLight position={[5, 5, 5]} intensity={1} />
+      {/* 3-D Canvas — lazy mounted once the card scrolls near the viewport */}
+      <div ref={canvasContainerRef} style={{ height: canvasHeight, position: 'relative', background: '#020408' }}>
+        {canvasReady ? (
+          <Canvas
+            camera={{ position: [1.8, 1.2, 1.8], fov: 40 }}
+            frameloop={frameloop}
+            dpr={isMobile ? [1, 1.5] : [1, 2]}
+            gl={{
+              antialias: !isMobile,
+              powerPreference: 'high-performance',
+              preserveDrawingBuffer: false,
+            }}
+            performance={{ min: 0.5 }}
+          >
+            <color attach="background" args={['#020408']} />
+            <ambientLight intensity={0.6} />
+            <pointLight position={[5, 5, 5]} intensity={1} />
 
-          {isEcliptic
-            ? <EclipticScene    config={dynamicConfig} sunSpeed={sunSpeed} sphereSpeed={sphereSpeed} />
-            : isEquatorial2
-            ? <EquatorialIIScene config={dynamicConfig} sunSpeed={sunSpeed} />
-            : isEquatorial1
-            ? <EquatorialScene  config={data.config} rotationSpeed={speed} latitude={latitude} />
-            : <CelestialScene   config={data.config} rotationSpeed={speed} latitude={latitude} />
-          }
+            {isEcliptic
+              ? <EclipticScene     config={dynamicConfig} sunSpeed={sunSpeed} sphereSpeed={sphereSpeed} />
+              : isEquatorial2
+              ? <EquatorialIIScene config={dynamicConfig} sunSpeed={sunSpeed} />
+              : isEquatorial1
+              ? <EquatorialScene   config={data.config}   rotationSpeed={speed} latitude={latitude} />
+              : <CelestialScene    config={data.config}   rotationSpeed={speed} latitude={latitude} />
+            }
 
-          <OrbitControls ref={controlsRef} makeDefault minDistance={1} maxDistance={4} />
-        </Canvas>
+            <OrbitControls ref={controlsRef} makeDefault minDistance={1} maxDistance={4} />
+          </Canvas>
+        ) : (
+          // Animated starfield placeholder — holds layout height and looks great
+          <StarfieldPlaceholder accentColor={accentColor} height={canvasHeight} />
+        )}
 
-        {/* Desktop: overlay controls on last step, reset button on other steps */}
-        {!isMobile && isLastStep && controlsOverlay}
-        {resetBtnOnly}
+        {/* Desktop overlay controls on last step */}
+        {!isMobile && isLastStep && canvasReady && controlsOverlay}
+        {canvasReady && resetBtnOnly}
       </div>
 
-      {/* Mobile: controls below canvas */}
+      {/* Mobile controls below canvas */}
       {isMobile && isLastStep && controlsOverlay}
     </div>
   )
@@ -1340,7 +1545,6 @@ const SYSTEMS = [
 function LegendDrawer({ active, isOpen, onClose }) {
   return (
     <>
-      {/* Backdrop */}
       {isOpen && (
         <div
           onClick={onClose}
@@ -1350,7 +1554,6 @@ function LegendDrawer({ active, isOpen, onClose }) {
           }}
         />
       )}
-      {/* Drawer */}
       <div style={{
         position: 'fixed', right: 0, top: 0, bottom: 0, width: '240px',
         background: '#030611', borderLeft: '1px solid rgba(255,255,255,0.07)',
@@ -1358,7 +1561,10 @@ function LegendDrawer({ active, isOpen, onClose }) {
         transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', paddingBottom: '12px', borderBottom: `1px solid ${active.color}33` }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: '18px', paddingBottom: '12px', borderBottom: `1px solid ${active.color}33`,
+        }}>
           <span style={{ fontSize: '11px', fontFamily: FONT_MONO, letterSpacing: '0.14em', textTransform: 'uppercase', color: active.color, fontWeight: 700 }}>Legend</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4a6080', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 6px' }}>✕</button>
         </div>
@@ -1509,13 +1715,12 @@ export default function App() {
           </div>
         </>
 
-        {/* Legend drawer */}
         <LegendDrawer active={active} isOpen={legendOpen} onClose={() => setLegendOpen(false)} />
       </div>
     )
   }
 
-  // ── DESKTOP LAYOUT (original) ──
+  // ── DESKTOP LAYOUT ──
   return (
     <div style={{
       display: 'flex', height: '100vh', background: '#06091a',
@@ -1576,9 +1781,7 @@ export default function App() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div style={{
-        flex: 1, overflowY: 'auto', padding: '36px 28px', background: '#07091c',
-      }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '36px 28px', background: '#07091c' }}>
         <div style={{
           marginBottom: '36px', paddingBottom: '20px',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
