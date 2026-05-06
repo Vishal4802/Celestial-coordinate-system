@@ -731,7 +731,7 @@ const equatorial2Steps = [
   { desc: "The Celestial Equator: the fixed reference plane for Equatorial II coordinates. Unlike the horizon, it is the same for every observer on Earth and never shifts with Earth's rotation.", config: { showEquator: true } },
   { desc: "Celestial Poles: NCP & SCP define the fixed rotation axis. The pole altitude equals the observer's latitude, but RA/Dec themselves are independent of observer location.", config: { showEquator: true, showPoles: true } },
   { desc: "The Ecliptic & Equinoxes: the Sun's apparent annual path (orange dashes), tilted 23.5° from the equator due to Earth's axial tilt. ♈ Vernal Equinox is the zero-point of the RA grid. The Sun ☀ is shown at a fixed position along the ecliptic.", config: { showEquator: true, showPoles: true, showEcliptic: true, showStaticSun: true } },
-  { desc: "Right Ascension (α) & Declination (δ): Cyan arc = RA measured eastward from ♈. Magenta arc = Declination from equator to star. Orange dashes = hour circle. The dotted ring shows the star's full diurnal path (circle of constant declination).", config: { showEquator: true, showPoles: true, showEcliptic: true, showStaticSun: true, showStar: true, showStarPath: true } },
+  { desc: "Right Ascension (α) & Declination (δ): Cyan arc = RA measured eastward from ♈. Magenta arc = Declination from equator to star. Orange dashes = hour circle. The dotted ring shows the star's full diurnal/daily path (circle of constant declination).", config: { showEquator: true, showPoles: true, showEcliptic: true, showStaticSun: true, showStar: true, showStarPath: true } },
   { desc: "Full Motion: the celestial sphere rotates (Earth spinning), the Sun ☀ drifts along the ecliptic (Earth orbiting). The star rides the rotating sphere with fixed RA & Dec displayed. Use the sliders to control speeds.", config: { showEquator: true, showPoles: true, showEcliptic: true, showStar: true, showStarPath: true, showSunMotion: true, rotateSphere: true, sunSpeed: 0.5 } },
 ]
 const eclipticSteps = [
@@ -910,7 +910,7 @@ const StepCard = memo(function StepCard({ stepNum, data, systemId, accentColor }
             </div>
             <input type="range" min="0" max="0.6" step="0.01" value={sphereSpeed} onChange={onSphereChange}
               className={`w-full mb-1 ${isEcliptic ? 'accent-fuchsia-400' : 'accent-violet-400'}`} />
-            <div className={`text-[9px] font-mono ${isEcliptic ? 'text-[#4a2060]' : 'text-[#4a3a6a]'}`}>★ star / diurnal rotation</div>
+            <div className={`text-[9px] font-mono ${isEcliptic ? 'text-[#4a2060]' : 'text-[#4a3a6a]'}`}>★ star / diurnal/daily rotation</div>
           </SliderBox>
 
           <SliderBox>
