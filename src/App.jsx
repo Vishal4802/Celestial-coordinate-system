@@ -4,6 +4,9 @@ import React, {
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import HomePage from './pages/Home'
+import LanguageSelector from './components/LanguageSelector'
+import { useLanguage } from './context/LanguageContext'
+import { getTranslation, TRANSLATIONS } from './data/translations'
 import { DEG, RING_PTS } from './constants/3d'
 import { CelestialScene, EquatorialScene, EquatorialIIScene, EclipticScene } from './components/3D/scenes'
 
@@ -323,14 +326,6 @@ const CoordDef = memo(function CoordDef({ symbol, name, desc, color }) {
   )
 })
 
-// ─── SYSTEMS DATA ─────────────────────────────────────────────────────────────
-const SYSTEMS = [
-  { id: 'horizontal',   label: 'Horizontal',     sub: 'Azimuth · Altitude',            color: '#38bdf8', steps: horizontalSteps,  legend: horizontalLegend,  coordLabel: 'Horizontal',     coords: [{ symbol:'A', name:'Azimuth',      desc:'0°–360° from North',        color:'#00ccff'},{symbol:'a',name:'Altitude',    desc:'0° horizon → 90°',         color:'#ff00ff'}] },
-  { id: 'equatorial1',  label: 'Equatorial I',   sub: 'Declination · Hour Angle',      color: '#fb923c', steps: equatorialSteps,  legend: equatorialLegend,  coordLabel: 'Equatorial I',   coords: [{ symbol:'δ', name:'Declination',  desc:'+90° (NCP) to −90°',       color:'#ff00ff'},{symbol:'H',name:'Hour Angle',   desc:'0°–360°, westward',         color:'#ff6600'}] },
-  { id: 'equatorial2',  label: 'Equatorial II',  sub: 'Declination · Right Ascension', color: '#a78bfa', steps: equatorial2Steps, legend: equatorial2Legend, coordLabel: 'Equatorial II',  coords: [{ symbol:'α', name:'R. Ascension', desc:'0°–360° eastward from ♈',   color:'#00ccff'},{symbol:'δ',name:'Declination',desc:'+90° (NCP) to −90°',         color:'#c026d3'}] },
-  { id: 'ecliptic',     label: 'Ecliptic',       sub: 'Longitude · Latitude',          color: '#e879f9', steps: eclipticSteps,    legend: eclipticLegend,    coordLabel: 'Ecliptic',       coords: [{ symbol:'λ', name:'Longitude',    desc:'0°–360° eastward from ♈',   color:'#00ccff'},{symbol:'β',name:'Latitude',    desc:'±90° from ecliptic plane',  color:'#c026d3'}] },
-]
-
 // ─── NAV BUTTON (shared between mobile drawer + desktop sidebar) ──────────────
 function NavButton({ sys, active, onClick }) {
   const on = active === sys.id
@@ -369,13 +364,13 @@ function LegendPanel({ active }) {
 }
 
 // ─── LEGEND DRAWER (mobile) ───────────────────────────────────────────────────
-function LegendDrawer({ active, isOpen, onClose }) {
+function LegendDrawer({ active, isOpen, onClose, language }) {
   return (
     <>
       {isOpen && <div onClick={onClose} className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" />}
       <div className={`fixed right-0 top-0 bottom-0 w-60 bg-[#030611] border-l border-white/[0.07] z-50 px-4 py-6 overflow-y-auto transition-transform duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex justify-between items-center mb-4 pb-3" style={{ borderBottom: `1px solid ${active.color}33` }}>
-          <span className="text-[11px] font-mono uppercase tracking-[0.14em] font-bold" style={{ color: active.color }}>Legend</span>
+          <span className="text-[11px] font-mono uppercase tracking-[0.14em] font-bold" style={{ color: active.color }}>{getTranslation(language, 'legend')}</span>
           <button onClick={onClose} className="bg-transparent border-0 text-[#4a6080] cursor-pointer text-[18px] leading-none px-1.5 py-0.5">✕</button>
         </div>
         <LegendPanel active={active} />
@@ -386,13 +381,48 @@ function LegendDrawer({ active, isOpen, onClose }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const { language } = useLanguage()
   const [showHome, setShowHome] = useState(true)
   const [activeSystemId, setActiveSystemId] = useState('horizontal')
   const [navOpen,        setNavOpen]        = useState(false)
   const [legendOpen,     setLegendOpen]     = useState(false)
   const isMobile = useIsMobile()
 
-  const active = useMemo(() => SYSTEMS.find(s => s.id === activeSystemId), [activeSystemId])
+  // Build SYSTEMS data based on current language
+  const SYSTEMS = useMemo(() => {
+    const trans = TRANSLATIONS[language]
+    const hSteps = trans.horizontalSteps.map(s => ({ ...s, config: {} }))
+    const eSteps = trans.equatorialSteps.map(s => ({ ...s, config: {} }))
+    const e2Steps = trans.equatorial2Steps.map(s => ({ ...s, config: {} }))
+    const eclSteps = trans.eclipticSteps.map(s => ({ ...s, config: {} }))
+
+    // Restore configs from original steps
+    horizontalSteps.forEach((orig, i) => { if (hSteps[i]) hSteps[i].config = orig.config })
+    equatorialSteps.forEach((orig, i) => { if (eSteps[i]) eSteps[i].config = orig.config })
+    equatorial2Steps.forEach((orig, i) => { if (e2Steps[i]) e2Steps[i].config = orig.config })
+    eclipticSteps.forEach((orig, i) => { if (eclSteps[i]) eclSteps[i].config = orig.config })
+
+    // Build coords with translated names and colors
+    const horCoords = trans.coordLabels.horizontal.coords.map((c, i) => ({ ...c, color: ['#00ccff', '#ff00ff'][i] }))
+    const eqCoords = trans.coordLabels.equatorial1.coords.map((c, i) => ({ ...c, color: ['#ff00ff', '#ff6600'][i] }))
+    const eq2Coords = trans.coordLabels.equatorial2.coords.map((c, i) => ({ ...c, color: ['#00ccff', '#c026d3'][i] }))
+    const eclCoords = trans.coordLabels.ecliptic.coords.map((c, i) => ({ ...c, color: ['#00ccff', '#c026d3'][i] }))
+
+    // Build legends with translated labels and colors
+    const horLegend = trans.legendItems.horizontal.map((item, i) => ({ ...item, color: horizontalLegend[i].color, dot: horizontalLegend[i].dot }))
+    const eqLegend = trans.legendItems.equatorial1.map((item, i) => ({ ...item, color: equatorialLegend[i].color, dot: equatorialLegend[i].dot }))
+    const eq2Legend = trans.legendItems.equatorial2.map((item, i) => ({ ...item, color: equatorial2Legend[i].color, dot: equatorial2Legend[i].dot }))
+    const eclLegend = trans.legendItems.ecliptic.map((item, i) => ({ ...item, color: eclipticLegend[i].color, dot: eclipticLegend[i].dot }))
+
+    return [
+      { id: 'horizontal',   label: trans.systems.horizontal.label,     sub: trans.systems.horizontal.subtitle,            color: '#38bdf8', steps: hSteps,   legend: horLegend,  coordLabel: trans.coordLabels.horizontal.label,   coords: horCoords },
+      { id: 'equatorial1',  label: trans.systems.equatorial1.label,   sub: trans.systems.equatorial1.subtitle,      color: '#fb923c', steps: eSteps,   legend: eqLegend,  coordLabel: trans.coordLabels.equatorial1.label,   coords: eqCoords },
+      { id: 'equatorial2',  label: trans.systems.equatorial2.label,  sub: trans.systems.equatorial2.subtitle, color: '#a78bfa', steps: e2Steps, legend: eq2Legend, coordLabel: trans.coordLabels.equatorial2.label,  coords: eq2Coords },
+      { id: 'ecliptic',     label: trans.systems.ecliptic.label,       sub: trans.systems.ecliptic.subtitle,          color: '#e879f9', steps: eclSteps,    legend: eclLegend,    coordLabel: trans.coordLabels.ecliptic.label,       coords: eclCoords },
+    ]
+  }, [language])
+
+  const active = useMemo(() => SYSTEMS.find(s => s.id === activeSystemId), [activeSystemId, SYSTEMS])
 
   const handleSystemChange = useCallback((id) => { setActiveSystemId(id); setNavOpen(false); setShowHome(false) }, [])
 
@@ -404,7 +434,9 @@ export default function App() {
   // ── MOBILE LAYOUT ──
   if (isMobile) {
     return (
-      <div className="flex flex-col h-screen bg-[#06091a] text-[#e2e8f0] overflow-hidden">
+      <>
+        <LanguageSelector />
+        <div className="flex flex-col h-screen bg-[#06091a] text-[#e2e8f0] overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 h-[52px] shrink-0 bg-[#030611] border-b border-white/[0.06]">
           <button onClick={() => setShowHome(true)} className="bg-transparent border-0 text-[#7a90b0] cursor-pointer text-lg p-1 leading-none hover:text-[#38bdf8] transition-colors">⌂</button>
@@ -442,57 +474,61 @@ export default function App() {
         {navOpen && <div onClick={() => setNavOpen(false)} className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" />}
         <div className={`fixed left-0 top-0 bottom-0 w-[220px] bg-[#030611] border-r border-white/[0.07] z-50 p-2.5 flex flex-col transition-transform duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="px-2.5 pt-1 pb-5 mb-3.5 border-b border-white/[0.05]">
-            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#263550] mb-1.5 font-black">Celestial Coords</div>
-            <div className="text-base font-bold text-[#c8d8ee] leading-tight">Coordinate<br />Systems</div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#263550] mb-1.5 font-black">{getTranslation(language, 'celestialCoords')}</div>
+            <div className="text-base font-bold text-[#c8d8ee] leading-tight">{getTranslation(language, 'coordinateSystems')}</div>
           </div>
           <div className="flex flex-col gap-1">
             {SYSTEMS.map(sys => <NavButton key={sys.id} sys={sys} active={activeSystemId} onClick={() => handleSystemChange(sys.id)} />)}
           </div>
         </div>
 
-        <LegendDrawer active={active} isOpen={legendOpen} onClose={() => setLegendOpen(false)} />
+        <LegendDrawer active={active} isOpen={legendOpen} onClose={() => setLegendOpen(false)} language={language} />
       </div>
+      </>
     )
   }
 
   // ── DESKTOP LAYOUT ──
   return (
-    <div className="flex h-screen bg-[#06091a] text-[#e2e8f0] overflow-hidden">
-      {/* Left nav */}
-      <div className="w-[210px] bg-[#030611] border-r border-white/[0.05] flex flex-col shrink-0">
-        <button onClick={() => setShowHome(true)} className="px-5 pt-5 pb-3 border-b border-white/[0.05] text-left bg-transparent border-0 cursor-pointer hover:bg-white/[0.03] transition-colors">
-          <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#5a7088] mb-1 font-black hover:text-[#38bdf8]">← Home</div>
-        </button>
-        <div className="px-5 py-3 border-b border-white/[0.05]">
-          <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#263550] mb-2 font-black">Celestial Coords</div>
-          <div className="text-[15px] font-bold text-[#c8d8ee] leading-tight">Coordinate<br />Systems</div>
-        </div>
-        <div className="p-2.5 flex flex-col gap-1">
-          {SYSTEMS.map(sys => <NavButton key={sys.id} sys={sys} active={activeSystemId} onClick={() => setActiveSystemId(sys.id)} />)}
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 overflow-y-auto px-7 py-9 bg-[#07091c]">
-        <div className="mb-9 pb-5 border-b border-white/[0.05]">
-          <h1 className="m-0 mb-1.5 text-[28px] font-extrabold tracking-[-0.02em]" style={{ color: active.color }}>{active.label}</h1>
-          <div className="text-[13px] text-[#253548] font-mono tracking-[0.04em] font-bold">
-            {active.steps.length} steps · {active.sub}
+    <>
+      <LanguageSelector />
+      <div className="flex h-screen bg-[#06091a] text-[#e2e8f0] overflow-hidden">
+        {/* Left nav */}
+        <div className="w-[210px] bg-[#030611] border-r border-white/[0.05] flex flex-col shrink-0">
+          <button onClick={() => setShowHome(true)} className="px-5 pt-5 pb-3 border-b border-white/[0.05] text-left bg-transparent border-0 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#5a7088] mb-1 font-black hover:text-[#38bdf8]">← {getTranslation(language, 'home')}</div>
+          </button>
+          <div className="px-5 py-3 border-b border-white/[0.05]">
+            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#263550] mb-2 font-black">{getTranslation(language, 'celestialCoords')}</div>
+            <div className="text-[15px] font-bold text-[#c8d8ee] leading-tight">{getTranslation(language, 'coordinateSystems')}</div>
+          </div>
+          <div className="p-2.5 flex flex-col gap-1">
+            {SYSTEMS.map(sys => <NavButton key={sys.id} sys={sys} active={activeSystemId} onClick={() => setActiveSystemId(sys.id)} />)}
           </div>
         </div>
-        {active.steps.map((step, i) => (
-          <StepCard key={`${activeSystemId}-${i}`} stepNum={i + 1} data={step} systemId={activeSystemId} accentColor={active.color} />
-        ))}
-      </div>
 
-      {/* Right legend */}
-      <div className="w-48 bg-[#030611] border-l border-white/[0.05] px-4 py-6 shrink-0 overflow-y-auto">
-        <div className="text-[11px] font-mono uppercase tracking-[0.14em] font-bold mb-4 pb-3"
-          style={{ color: active.color, borderBottom: `1px solid ${active.color}33` }}>
-          Legend
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto px-7 py-9 bg-[#07091c]">
+          <div className="mb-9 pb-5 border-b border-white/[0.05]">
+            <h1 className="m-0 mb-1.5 text-[28px] font-extrabold tracking-[-0.02em]" style={{ color: active.color }}>{active.label}</h1>
+            <div className="text-[13px] text-[#253548] font-mono tracking-[0.04em] font-bold">
+              {active.steps.length} {getTranslation(language, 'steps')} · {active.sub}
+            </div>
+          </div>
+          {active.steps.map((step, i) => (
+            <StepCard key={`${activeSystemId}-${i}`} stepNum={i + 1} data={step} systemId={activeSystemId} accentColor={active.color} />
+          ))}
         </div>
-        <LegendPanel active={active} />
+
+        {/* Right legend */}
+        <div className="w-48 bg-[#030611] border-l border-white/[0.05] px-4 py-6 shrink-0 overflow-y-auto">
+          <div className="text-[11px] font-mono uppercase tracking-[0.14em] font-bold mb-4 pb-3"
+            style={{ color: active.color, borderBottom: `1px solid ${active.color}33` }}>
+            {getTranslation(language, 'legend')}
+          </div>
+          <LegendPanel active={active} />
+        </div>
       </div>
-    </div>
+    </>
   )
 }
