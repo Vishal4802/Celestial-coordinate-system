@@ -2,17 +2,17 @@ import React from 'react'
 import StarBackground from '../components/StarBackground'
 import Hero from '../components/Hero'
 import SystemCard from '../components/SystemCard'
-import LanguageSelector from '../components/LanguageSelector'
+import LanguageModal from '../components/LanguageModal'
 import { useLanguage } from '../context/LanguageContext'
 import { getTranslation } from '../data/translations'
 
-export default function HomePage({ onSelectSystem }) {
+export default function HomePage({ onSelectSystem, onLanguageClick, languageModalOpen, onLanguageModalClose }) {
   const { language } = useLanguage()
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-[#06091a] via-[#0a0e2e] to-[#06091a] text-[#e2e8f0] overflow-hidden">
-      {/* Language Selector */}
-      <LanguageSelector />
+      {/* Language Selection Modal */}
+      <LanguageModal isVisible={languageModalOpen} onClose={onLanguageModalClose} />
       
       {/* Background stars */}
       <StarBackground />

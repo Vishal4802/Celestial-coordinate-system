@@ -4,7 +4,7 @@ import React, {
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import HomePage from './pages/Home'
-import LanguageSelector from './components/LanguageSelector'
+import LanguageModal from './components/LanguageModal'
 import { useLanguage } from './context/LanguageContext'
 import { getTranslation, TRANSLATIONS } from './data/translations'
 import { DEG, RING_PTS } from './constants/3d'
@@ -354,7 +354,7 @@ function LegendPanel({ active }) {
         {active.legend.map((item, i) => <LegendItem key={i} color={item.color} label={item.label} dot={item.dot} />)}
       </div>
       <div className="pt-4 border-t border-white/[0.04]">
-        <div className="text-[10px] font-bold font-mono uppercase tracking-[0.12em] mb-4" style={{ color: active.color }}>
+        <div className="text-sm font-bold font-mono uppercase tracking-[0.12em] mb-4" style={{ color: active.color }}>
           {active.coordLabel}
         </div>
         {active.coords.map((c, i) => <CoordDef key={i} symbol={c.symbol} name={c.name} desc={c.desc} color={c.color} />)}
@@ -386,6 +386,7 @@ export default function App() {
   const [activeSystemId, setActiveSystemId] = useState('horizontal')
   const [navOpen,        setNavOpen]        = useState(false)
   const [legendOpen,     setLegendOpen]     = useState(false)
+  const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const isMobile = useIsMobile()
 
   // Build SYSTEMS data based on current language
@@ -428,14 +429,14 @@ export default function App() {
 
   // Show home page
   if (showHome) {
-    return <HomePage onSelectSystem={handleSystemChange} />
+    return <HomePage onSelectSystem={handleSystemChange} onLanguageClick={() => setLanguageModalOpen(true)} languageModalOpen={languageModalOpen} onLanguageModalClose={() => setLanguageModalOpen(false)} />
   }
 
   // ── MOBILE LAYOUT ──
   if (isMobile) {
     return (
       <>
-        <LanguageSelector />
+        <LanguageModal isVisible={languageModalOpen} onClose={() => setLanguageModalOpen(false)} />
         <div className="flex flex-col h-screen bg-[#06091a] text-[#e2e8f0] overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 h-[52px] shrink-0 bg-[#030611] border-b border-white/[0.06]">
@@ -444,7 +445,10 @@ export default function App() {
             <div className="text-[15px] font-bold" style={{ color: active.color }}>{active.label}</div>
             <div className="text-[9px] text-[#253548] font-mono uppercase tracking-[0.06em]">{active.sub}</div>
           </div>
-          <button onClick={() => setLegendOpen(true)} className="bg-transparent border-0 text-[#7a90b0] cursor-pointer text-base p-1 leading-none font-mono">★</button>
+          <div className="flex gap-2">
+            <button onClick={() => setLanguageModalOpen(true)} className="bg-transparent border-0 text-[#7a90b0] hover:text-[#a78bfa] cursor-pointer text-base p-1 leading-none transition-colors">⚙️</button>
+            <button onClick={() => setLegendOpen(true)} className="bg-transparent border-0 text-[#7a90b0] cursor-pointer text-base p-1 leading-none font-mono">★</button>
+          </div>
         </div>
 
         {/* Main scrollable content */}
@@ -491,12 +495,12 @@ export default function App() {
   // ── DESKTOP LAYOUT ──
   return (
     <>
-      <LanguageSelector />
+      <LanguageModal isVisible={languageModalOpen} onClose={() => setLanguageModalOpen(false)} />
       <div className="flex h-screen bg-[#06091a] text-[#e2e8f0] overflow-hidden">
         {/* Left nav */}
         <div className="w-[210px] bg-[#030611] border-r border-white/[0.05] flex flex-col shrink-0">
           <button onClick={() => setShowHome(true)} className="px-5 pt-5 pb-3 border-b border-white/[0.05] text-left bg-transparent border-0 cursor-pointer hover:bg-white/[0.03] transition-colors">
-            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#5a7088] mb-1 font-black hover:text-[#38bdf8]">← {getTranslation(language, 'home')}</div>
+            <div className="text-sm font-mono uppercase tracking-[0.18em] text-[#5a7088] mb-1 font-black hover:text-[#38bdf8]">← {getTranslation(language, 'home')}</div>
           </button>
           <div className="px-5 py-3 border-b border-white/[0.05]">
             <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#263550] mb-2 font-black">{getTranslation(language, 'celestialCoords')}</div>
@@ -521,12 +525,24 @@ export default function App() {
         </div>
 
         {/* Right legend */}
-        <div className="w-48 bg-[#030611] border-l border-white/[0.05] px-4 py-6 shrink-0 overflow-y-auto">
-          <div className="text-[11px] font-mono uppercase tracking-[0.14em] font-bold mb-4 pb-3"
-            style={{ color: active.color, borderBottom: `1px solid ${active.color}33` }}>
-            {getTranslation(language, 'legend')}
+        <div className="w-48 bg-[#030611] border-l border-white/[0.05] px-4 py-6 shrink-0 overflow-y-auto flex flex-col">
+          <div className="flex items-center justify-between mb-4 pb-3"
+            style={{ borderBottom: `1px solid ${active.color}33` }}>
+            <div className="text-sm font-mono uppercase tracking-[0.14em] font-bold"
+              style={{ color: active.color }}>
+              {getTranslation(language, 'legend')}
+            </div>
+            <button
+              onClick={() => setLanguageModalOpen(true)}
+              className="bg-transparent border-0 text-[#7a90b0] hover:text-[#a78bfa] cursor-pointer text-lg transition-colors p-1 leading-none"
+              title="Settings"
+            >
+              ⚙️
+            </button>
           </div>
-          <LegendPanel active={active} />
+          <div className="flex-1">
+            <LegendPanel active={active} />
+          </div>
         </div>
       </div>
     </>

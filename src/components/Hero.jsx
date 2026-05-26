@@ -1,9 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import RotatingCelestialSphere from './RotatingCelestialSphere'
+import LanguageModal from './LanguageModal'
 import { useLanguage } from '../context/LanguageContext'
+import { getTranslation } from '../data/translations'
 
 export default function Hero() {
   const { language } = useLanguage()
+  const [languageModalOpen, setLanguageModalOpen] = useState(false)
   
   const isEnglish = language === 'en'
   const isHindi = language === 'hi'
@@ -14,14 +17,24 @@ export default function Hero() {
       <div className="flex flex-col md:flex-row gap-12 items-start md:items-center">
         {/* Left content */}
         <div className="flex-2 max-w-3xl">
-          {/* Badge */}
-          <div className="inline-block mb-6 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
-            <span className="text-xs font-mono tracking-widest text-[#38bdf8]">
-              {isEnglish && '✦ CELESTIAL COORDINATES'}
-              {isHindi && '✦ आकाश निर्देशांक'}
-              {isSanskrit && '✦ खगोल निर्देशांक'}
-            </span>
+          {/* Badge with Language Button */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
+              <span className="text-xs font-mono tracking-widest text-[#38bdf8]">
+                {isEnglish && '✦ CELESTIAL COORDINATES'}
+                {isHindi && '✦ आकाश निर्देशांक'}
+                {isSanskrit && '✦ खगोल निर्देशांक'}
+              </span>
+            </div>
+            <button
+              onClick={() => setLanguageModalOpen(true)}
+              className="px-4 py-1 rounded-full bg-white/5 border border-white/10 hover:border-white/30 backdrop-blur-sm transition-all text-xs font-mono tracking-widest text-[#a78bfa] hover:text-[#c8b6ff]"
+            >
+              {getTranslation(language, 'language')}
+            </button>
           </div>
+          
+          <LanguageModal isVisible={languageModalOpen} onClose={() => setLanguageModalOpen(false)} />
 
           {/* Main heading */}
           <h1 className="text-5xl md:text-6xl font-black mb-6 leading-tight tracking-tight">

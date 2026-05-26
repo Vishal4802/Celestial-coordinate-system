@@ -1,10 +1,14 @@
 export const TRANSLATIONS = {
   en: {
     // Navigation & UI
+    celestialCoordinatesTitle: 'CELESTIAL COORDINATES',
     selectLanguage: 'Select Language',
+    selectPreferredLanguage: 'Select your preferred language',
+    canChangeAnytime: 'You can change the language anytime from the app settings',
     english: 'English',
     hindi: 'हिन्दी',
     sanskrit: 'संस्कृतम्',
+    language: 'Language',
     chooseCoordinateSystem: 'Choose a Coordinate System',
     interactiveVisualizations: 'Interactive 3D visualizations to master celestial coordinate systems',
     home: 'Home',
@@ -167,10 +171,14 @@ export const TRANSLATIONS = {
 
   hi: {
     // Navigation & UI
+    celestialCoordinatesTitle: 'आकाशीय निर्देशांक',
     selectLanguage: 'भाषा चुनें',
+    selectPreferredLanguage: 'अपनी पसंदीदा भाषा चुनें',
+    canChangeAnytime: 'आप ऐप सेटिंग्स से कभी भी भाषा बदल सकते हैं',
     english: 'English',
     hindi: 'हिन्दी',
     sanskrit: 'संस्कृतम्',
+    language: 'भाषा',
     chooseCoordinateSystem: 'एक समन्वय प्रणाली चुनें',
     interactiveVisualizations: 'आकाशीय समन्वय प्रणालियों में महारत हासिल करने के लिए इंटरैक्टिव 3D दृश्य',
     home: 'होम',
@@ -333,10 +341,14 @@ export const TRANSLATIONS = {
 
   sa: {
     // Navigation & UI
+    celestialCoordinatesTitle: 'खगोल निर्देशांक',
     selectLanguage: 'भाषा निर्वयनं कुरुध्वम्',
+    selectPreferredLanguage: 'भवत: प्रिय भाषा निर्वयनं कुरुध्वम्',
+    canChangeAnytime: 'अनुप्रयोग व्यवस्थापनात् कदाचिद् भाषा परिवर्तयितुं शक्नोषि',
     english: 'English',
     hindi: 'हिन्दी',
     sanskrit: 'संस्कृतम्',
+    language: 'भाषा',
     chooseCoordinateSystem: 'खगोल समन्वय व्यवस्था निर्वयनं कुरुध्वम्',
     interactiveVisualizations: 'खगोल समन्वय व्यवस्था महाविद्या योग्यता प्राप्तये इंटरैक्टिव त्रिविम दृश्य',
     home: 'गृहम्',
